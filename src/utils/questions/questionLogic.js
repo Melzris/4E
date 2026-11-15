@@ -1,6 +1,6 @@
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, computed } from "vue";
 import router from "@/router";
-import { activeQuestions } from "@/utils/questions/questionUtils.js";
+import { activeQuestions, questionIds } from "@/utils/questions/questionUtils.js";
 
 export const result = reactive({
   sangue: 1,
@@ -11,24 +11,21 @@ export const result = reactive({
 
 export const answers = reactive({});
 export const currentQuestionIndex = ref(0);
-export const currentQuestion = ref("");
 export const quizFinished = ref(false);
+export const currentQuestion = computed(() =>{
+  const id = questionsOrder.value[currentQuestionIndex.value];
+  const q  = activeQuestions.value.find((x) => x.id.toString() === id);
+  if (!q) return "";
+  return `<span class='question-index'>#${currentQuestionIndex.value + 1} | </span> ${q.question}`
+});
 
-let initialized = false;
 const questionsOrder = ref([]);
 
-watch(
-  activeQuestions,
-  () => {
-    questionsOrder.value = activeQuestions.value.map((q) => q.id.toString());
-    if (!initialized) {
-      shuffleArray(questionsOrder.value);
-      initialized = true;
-    }
-    initQuestion();
-  },
-  { immediate: true }
-);
+function buildQuestionOrder() {
+  questionsOrder.value = questionIds.value.slice();
+  shuffleArray(questionsOrder.value);
+}
+buildQuestionOrder();
 
 function shuffleArray(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -38,41 +35,14 @@ function shuffleArray(arr) {
   return arr;
 }
 
-function initQuestion() {
-  const id = questionsOrder.value[currentQuestionIndex.value];
-  const q = activeQuestions.value.find((x) => x.id.toString() === id);
-  if (!q) {
-    currentQuestion.value = "";
-    return;
-  }
-  currentQuestion.value = `<span class='question-index'>#${currentQuestionIndex.value + 1} | </span> ${q.question}`;
-}
-
 export function resetQuiz() {
-  initialized = false;
-
   questionsOrder.value = [];
   currentQuestionIndex.value = 0;
 
   Object.assign(result, { sangue: 1, morte: 1, conhecimento: 1, energia: 1 });
   Object.keys(answers).forEach((id) => delete answers[id]);
-
   quizFinished.value = false;
-
-  watch(
-    activeQuestions,
-    () => {
-      questionsOrder.value = activeQuestions.value.map((q) => q.id.toString());
-      if (!initialized) {
-        shuffleArray(questionsOrder.value);
-        initialized = true;
-      }
-      initQuestion();
-    },
-    { immediate: true }
-  );
-
-  activeQuestions.value = activeQuestions.value;
+  buildQuestionOrder();
 }
 
 export function next(answer) {
@@ -87,9 +57,7 @@ export function next(answer) {
   answers[id] = answer;
   currentQuestionIndex.value++;
 
-  if (currentQuestionIndex.value < questionsOrder.value.length) {
-    initQuestion();
-  } else {
+  if (currentQuestionIndex.value >= questionsOrder.value.length) {
     quizFinished.value = true;
   }
 }
@@ -97,15 +65,16 @@ export function next(answer) {
 export function prev() {
   if (currentQuestionIndex.value <= 0) return;
 
-  const id = questionsOrder.value[--currentQuestionIndex.value];
+  const targetIndex = currentQuestionIndex.value - 1;
+  const id = questionsOrder.value[targetIndex];
   const q = activeQuestions.value.find((x) => x.id.toString() === id);
   if (!q || answers[id] == null) return;
+
+  currentQuestionIndex.value = targetIndex;
 
   Object.entries(q.effect).forEach(([key, val]) => {
     result[key] -= val * answers[id];
   });
-
-  initQuestion();
 }
 
 export function sendResults(username) {
@@ -135,8 +104,8 @@ export function sendResults(username) {
   } else {
     resultElement = labels[winners[0]];
   }
-  
-  // 
+
+  //
   const quizResult = {
     name: name,
     spectrum: spectrumPer,
@@ -149,3 +118,7 @@ export function sendResults(username) {
 
   router.push("/resultado");
 }
+
+watch(questionIds, () => {
+  if (Object.keys(answers).length === 0) buildQuestionOrder();
+})
