@@ -4,7 +4,7 @@ import { i18n } from '@/i18n'
 
 export const questionSet = ref(localStorage.getItem('version') || 'new')
 
-const language = i18n.global.locale 
+const language = i18n.global.locale
 
 export const activeQuestions = computed(() => {
   const raw = questionData[questionSet.value] || []
@@ -14,6 +14,10 @@ export const activeQuestions = computed(() => {
     effect: q.effect
   }))
 })
+
+export const questionIds = computed(() =>
+  (questionData[questionSet.value] || []).map((q) => q.id.toString())
+);
 
 export function changeQuestionSet(version) {
   questionSet.value = version
